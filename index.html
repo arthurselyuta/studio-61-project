@@ -1,0 +1,82 @@
+<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Студия №61 — 3D проект v0.2</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#151a20;color:#fff;font-family:-apple-system,BlinkMacSystemFont,Arial,sans-serif;overflow:hidden}canvas{display:block;width:100vw;height:100dvh;touch-action:none}
+#top{position:absolute;top:12px;left:12px;right:12px;max-width:560px;padding:12px 15px;border-radius:14px;background:#14202be8;box-shadow:0 6px 22px #0006;pointer-events:none}h1{font-size:17px;margin:0 0 4px}p{font-size:12px;margin:3px 0;line-height:1.45;color:#dbe7ed}
+#controls{position:absolute;bottom:14px;left:10px;right:10px;display:flex;gap:7px;justify-content:center;flex-wrap:wrap}button{font-size:13px;border:1px solid #ffffff30;border-radius:10px;padding:11px 12px;background:#f7f3ec;color:#15212a;font-weight:700;cursor:pointer}button.secondary{background:#223440;color:#fff}
+#compass{position:absolute;right:14px;top:14px;border-radius:12px;background:#14202bdc;padding:9px;font-size:12px;text-align:center;min-width:94px}
+#legend{position:absolute;top:115px;left:12px;padding:10px 12px;border-radius:10px;background:#14202bdc;font-size:12px;line-height:1.6;pointer-events:none}
+</style></head><body>
+<canvas id="view"></canvas><div id="top"><h1>Студия №61 · проект 0.2</h1><p>Поверни обзор: зажми мышь/трекпад и потяни. Кнопки поворота работают без перетаскивания.</p><p>Полноценная меблировка: кровать 140×200, библиотека, гардероб, кухня, рабочая зона лоджии. Это концепция, не обмерный чертёж.</p></div>
+<div id="compass">Обзор<br><strong id="heading">ПРЯМО</strong></div>
+<div id="legend">◀ Лоджия · справа шкаф<br>Прямо кровать · сзади окно</div>
+<div id="controls"><button class="secondary" id="left">↶ Влево</button><button class="secondary" id="right">Вправо ↷</button><button id="bed">Разложить кровать</button><button class="secondary" id="reset">Центр</button><button class="secondary" id="plan">План сверху</button></div>
+<script>
+const canvas=document.querySelector('canvas'),ctx=canvas.getContext('2d');
+let w=0,h=0,dpr=1,yaw=0,pitch=0,bedOpen=false,plan=false,drag=false,px=0,py=0;
+function resize(){dpr=Math.min(2,devicePixelRatio||1);w=canvas.width=innerWidth*dpr;h=canvas.height=innerHeight*dpr}addEventListener('resize',resize);resize();
+const F=[];const P=(pts,color)=>F.push({pts,color});const B=(x1,y1,z1,x2,y2,z2,c)=>{P([[x1,y1,z1],[x2,y1,z1],[x2,y2,z1],[x1,y2,z1]],c);P([[x1,y1,z2],[x2,y1,z2],[x2,y2,z2],[x1,y2,z2]],c);P([[x1,y1,z1],[x1,y1,z2],[x1,y2,z2],[x1,y2,z1]],c);P([[x2,y1,z1],[x2,y1,z2],[x2,y2,z2],[x2,y2,z1]],c);P([[x1,y2,z1],[x2,y2,z1],[x2,y2,z2],[x1,y2,z2]],c)};
+const wall='#e3d8c8',wood='#9e7554',dark='#3c515c',glass='#87bfcc',white='#e8e1d8';
+function room(){
+F.length=0;
+P([[-2.05,-1.52,-2.85],[2.05,-1.52,-2.85],[2.05,-1.52,2.85],[-2.05,-1.52,2.85]],'#b9936f');
+P([[-2.05,1.45,-2.85],[2.05,1.45,-2.85],[2.05,1.45,2.85],[-2.05,1.45,2.85]],'#eee7da');
+// front wall and right wall
+P([[-2.05,-1.52,-2.85],[2.05,-1.52,-2.85],[2.05,1.45,-2.85],[-2.05,1.45,-2.85]],wall);
+P([[2.05,-1.52,-2.85],[2.05,-1.52,2.85],[2.05,1.45,2.85],[2.05,1.45,-2.85]],'#d6c9b9');
+// left wall with actual loggia OPENING z=-1.4 to 1.1, y=-1.36 to 1.12
+const X=-2.05;
+P([[X,-1.52,-2.85],[X,-1.52,-1.4],[X,1.45,-1.4],[X,1.45,-2.85]],wall);
+P([[X,-1.52,1.1],[X,-1.52,2.85],[X,1.45,2.85],[X,1.45,1.1]],wall);
+P([[X,1.12,-1.4],[X,1.12,1.1],[X,1.45,1.1],[X,1.45,-1.4]],wall);
+P([[X,-1.52,-1.4],[X,-1.52,1.1],[X,-1.36,1.1],[X,-1.36,-1.4]],wall);
+// balcony space visible through door: deep blue distant rail, desk, chair
+P([[-3.55,-1.50,-1.4],[-2.07,-1.50,-1.4],[-2.07,-1.50,1.1],[-3.55,-1.50,1.1]],'#b9a48a');
+P([[-3.55,-1.5,-1.4],[-3.55,-1.5,1.1],[-3.55,1.2,1.1],[-3.55,1.2,-1.4]],'#a6c9d5');
+B(-3.45,-1.35,-.95,-2.65,-1.23,.1,'#9a795b');B(-3.4,-1.25,-.87,-3.32,-.65,-.8,'#6c5344');B(-2.75,-1.25,-.87,-2.67,-.65,-.8,'#6c5344');
+B(-3.12,-1.5,.52,-2.6,-.86,.95,'#647c75');B(-3.22,-.88,.78,-2.5,-.72,1.0,'#647c75');
+// frame and glass with translucency through two panes
+B(-2.08,-1.38,-1.43,-2.01,1.14,-1.36,dark);B(-2.08,-1.38,1.07,-2.01,1.14,1.14,dark);
+B(-2.08,1.08,-1.43,-2.01,1.15,1.14,dark);B(-2.08,-1.39,-1.43,-2.01,-1.32,1.14,dark);
+B(-2.08,-1.36,-.18,-2.01,1.12,-.10,dark);
+B(-2.11,-.25,-.36,-2.0,-.20,-.27,'#d5b16b');
+// rear wall with WINDOW opening x=-.9 to .9
+P([[-2.05,-1.52,2.85],[-.9,-1.52,2.85],[-.9,1.45,2.85],[-2.05,1.45,2.85]],wall);
+P([[.9,-1.52,2.85],[2.05,-1.52,2.85],[2.05,1.45,2.85],[.9,1.45,2.85]],wall);
+P([[-.9,.95,2.85],[.9,.95,2.85],[.9,1.45,2.85],[-.9,1.45,2.85]],wall);
+P([[-.9,-1.52,2.85],[.9,-1.52,2.85],[.9,-.72,2.85],[-.9,-.72,2.85]],wall);
+P([[-.88,-.7,2.87],[.88,-.7,2.87],[.88,.92,2.87],[-.88,.92,2.87]],'#9dc9d8');
+B(-.91,-.74,2.8,-.85,.97,2.87,dark);B(.85,-.74,2.8,.91,.97,2.87,dark);
+B(-.91,-.74,2.8,.91,-.68,2.87,dark);B(-.91,.91,2.8,.91,.97,2.87,dark);
+B(-.035,-.7,2.78,.035,.95,2.85,dark);
+B(-1.05,-.75,2.67,1.05,-.68,2.89,'#e7e5dd');
+// wardrobe RIGHT
+B(1.66,-1.52,-1.25,2.00,1.35,1.85,'#a98b6f');
+for(let z=-1.2;z<1.8;z+=.74){B(1.63,-1.37,z,1.665,1.22,z+.04,'#78624e');B(1.61,-.18,z+.34,1.63,.12,z+.39,'#d4bc93')}
+// library FRONT
+for(let x=-2.00;x<2.0;x+=.49){B(x,-1.47,-2.78,x+.045,1.28,-2.46,'#654a39');for(let y=-1.36;y<1.28;y+=.45){B(x,y,-2.76,x+.47,y+.04,-2.44,'#8e6547');for(let k=0;k<4;k++){let xx=x+.07+k*.09;B(xx,y+.045,-2.70,xx+.065,y+.31,-2.48,['#caa780','#6b8580','#ba7967','#d9c9a9'][k])}}}
+// bed in library front
+B(-.80,-1.46,-2.40,.80,1.03,-2.25,'#e9ded1');
+B(-.68,.75,-2.245,.68,.83,-2.22,'#b6a28b');
+if(bedOpen){B(-.73,-1.44,-2.26,.73,-1.20,-.20,'#d9cbbd');B(-.68,-1.19,-2.20,.68,-1.09,-.29,'#f4eee7');B(-.60,-1.06,-2.13,.60,-.88,-1.77,'#c8d2cf');B(-.73,-1.5,-.35,-.66,-1.17,-.25,'#80654e');B(.66,-1.5,-.35,.73,-1.17,-.25,'#80654e')}
+// compact kitchenette back-left near entrance; conceptual
+B(-1.97,-1.48,-2.18,-1.62,-.54,-1.24,'#c5b3a0');B(-1.97,-.55,-2.18,-1.59,-.48,-1.24,'#eee4d6');
+B(-1.97,.35,-2.18,-1.65,1.25,-1.24,'#dfd1c1');
+B(-1.93,-.46,-1.98,-1.70,-.44,-1.71,'#4b5050');
+// center rug and narrow stool
+P([[-.92,-1.50,-.83],[.92,-1.50,-.83],[.92,-1.50,1.0],[-.92,-1.50,1.0]],'#c5b7a5');
+B(.82,-1.48,1.88,1.38,-1.03,2.31,'#8b6d53');
+}
+function transform(p){let [x,y,z]=p,cy=Math.cos(yaw),sy=Math.sin(yaw),cp=Math.cos(pitch),sp=Math.sin(pitch);let xx=x*cy+z*sy,zz=-x*sy+z*cy;return [xx,y*cp-zz*sp,y*sp+zz*cp]}
+function clip(ps){let a=[];for(let i=0;i<ps.length;i++){let p=ps[i],n=ps[(i+1)%ps.length],a0=p[2]<-.07,b0=n[2]<-.07;if(a0)a.push(p);if(a0!==b0){let t=(-.07-p[2])/(n[2]-p[2]);a.push(p.map((v,j)=>v+(n[j]-v)*t))}}return a}
+function draw3D(){room();ctx.fillStyle='#202b35';ctx.fillRect(0,0,w,h);let s=Math.min(w,h)*.83;let faces=F.map(f=>({col:f.color,p:clip(f.pts.map(transform))})).filter(f=>f.p.length>=3);faces.sort((a,b)=>a.p.reduce((s,p)=>s+p[2],0)/a.p.length-b.p.reduce((s,p)=>s+p[2],0)/b.p.length);for(let f of faces){ctx.beginPath();f.p.forEach((p,i)=>{let x=w/2+s*p[0]/-p[2],y=h/2-s*p[1]/-p[2];i?ctx.lineTo(x,y):ctx.moveTo(x,y)});ctx.closePath();ctx.fillStyle=f.col;ctx.fill();ctx.strokeStyle='#00000016';ctx.lineWidth=dpr;ctx.stroke()}}
+function drawPlan(){ctx.fillStyle='#e8e5df';ctx.fillRect(0,0,w,h);const s=Math.min(w/5.9,h/7.7),ox=w/2,oy=h/2;const rect=(x,z,X,Z,col)=>{ctx.fillStyle=col;ctx.fillRect(ox+x*s,oy+z*s,(X-x)*s,(Z-z)*s)};rect(-2.05,-2.85,2.05,2.85,'#faf8f4');ctx.strokeStyle='#343b3e';ctx.lineWidth=5*dpr;ctx.strokeRect(ox-2.05*s,oy-2.85*s,4.1*s,5.7*s);rect(-3.55,-1.4,-2.05,1.1,'#c6e1e8');rect(-2.0,-2.78,2,-2.42,'#856348');rect(-.8,-2.42,.8,-2.22,'#f0d9b9');if(bedOpen)rect(-.7,-2.22,.7,-.2,'#e3d4c6');rect(1.65,-1.25,2,1.85,'#a68b6e');rect(-1.97,-2.18,-1.59,-1.24,'#c6b5a0');rect(-.9,2.77,.9,2.87,'#79c2d9');ctx.fillStyle='#26343a';ctx.font=`${14*dpr}px Arial`;ctx.textAlign='center';ctx.fillText('ЛОДЖИЯ',ox-2.8*s,oy-.1*s);ctx.fillText('КРОВАТЬ / КНИГИ',ox,oy-2.05*s);ctx.fillText('ШКАФ',ox+1.1*s,oy+1.35*s);ctx.fillText('ОКНО',ox,oy+3.15*s);ctx.fillText('КУХНЯ',ox-1.45*s,oy-1.05*s);ctx.fillText('●',ox,oy)}
+function frame(){if(plan)drawPlan();else draw3D();let deg=((yaw*180/Math.PI)%360+360)%360;document.getElementById('heading').textContent=plan?'СВЕРХУ':Math.round(deg)+'°';requestAnimationFrame(frame)}frame();
+canvas.onpointerdown=e=>{drag=true;px=e.clientX;py=e.clientY;canvas.setPointerCapture(e.pointerId)};
+canvas.onpointerup=()=>drag=false;canvas.onpointercancel=()=>drag=false;
+canvas.onpointermove=e=>{if(!drag||plan)return;yaw+=(e.clientX-px)*.006;pitch=Math.max(-1.0,Math.min(1.0,pitch+(e.clientY-py)*.004));px=e.clientX;py=e.clientY};
+document.getElementById('left').onclick=()=>yaw-=Math.PI/2;document.getElementById('right').onclick=()=>yaw+=Math.PI/2;
+document.getElementById('reset').onclick=()=>{yaw=0;pitch=0;plan=false;document.getElementById('plan').textContent='План сверху'};
+document.getElementById('bed').onclick=e=>{bedOpen=!bedOpen;e.target.textContent=bedOpen?'Сложить кровать':'Разложить кровать'};
+document.getElementById('plan').onclick=e=>{plan=!plan;e.target.textContent=plan?'3D-обзор':'План сверху'};
+addEventListener('keydown',e=>{if(e.key==='ArrowLeft')yaw-=.15;if(e.key==='ArrowRight')yaw+=.15;if(e.key==='ArrowUp')pitch=Math.max(-1,pitch-.1);if(e.key==='ArrowDown')pitch=Math.min(1,pitch+.1)});
+</script></body></html>
